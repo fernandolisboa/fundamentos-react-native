@@ -23,6 +23,8 @@ interface CartContext {
   decrement(id: string): void;
 }
 
+const storageCartKey = '@GoMarketplace:cart';
+
 const CartContext = createContext<CartContext | null>(null);
 
 const CartProvider: React.FC = ({ children }) => {
@@ -30,23 +32,66 @@ const CartProvider: React.FC = ({ children }) => {
 
   useEffect(() => {
     async function loadProducts(): Promise<void> {
-      // TODO LOAD ITEMS FROM ASYNC STORAGE
+      const cart = await AsyncStorage.getItem(storageCartKey);
+
+      if (cart) {
+        setProducts(JSON.parse(cart));
+      }
     }
 
     loadProducts();
   }, []);
 
-  const addToCart = useCallback(async product => {
-    // TODO ADD A NEW ITEM TO THE CART
-  }, []);
+  const increment = useCallback(
+    async (id: string) => {
+      const cart = products.map(product =>
+        product.id === id
+          ? { ...product, quantity: product.quantity + 1 }
+          : product,
+      );
 
-  const increment = useCallback(async id => {
-    // TODO INCREMENTS A PRODUCT QUANTITY IN THE CART
-  }, []);
+      setProducts(cart);
 
-  const decrement = useCallback(async id => {
-    // TODO DECREMENTS A PRODUCT QUANTITY IN THE CART
-  }, []);
+      await AsyncStorage.setItem(storageCartKey, JSON.stringify(cart));
+    },
+    [products],
+  );
+
+  const decrement = useCallback(
+    async (id: string) => {
+      const existingProduct = products.find(p => p.id === id && p.quantity > 1);
+
+      const cart = existingProduct
+        ? products.map(product =>
+            product.id === existingProduct.id
+              ? { ...existingProduct, quantity: existingProduct.quantity - 1 }
+              : product,
+          )
+        : products.filter(p => p.id !== id);
+
+      setProducts(cart);
+
+      await AsyncStorage.setItem(storageCartKey, JSON.stringify(cart));
+    },
+    [products],
+  );
+
+  const addToCart = useCallback(
+    async (product: Product) => {
+      const alreadyExists = products.some(p => p.id === product.id);
+
+      if (alreadyExists) {
+        increment(product.id);
+        return;
+      }
+
+      const cart = [...products, { ...product, quantity: 1 }];
+      setProducts(cart);
+
+      await AsyncStorage.setItem(storageCartKey, JSON.stringify(cart));
+    },
+    [products, increment],
+  );
 
   const value = React.useMemo(
     () => ({ addToCart, increment, decrement, products }),
